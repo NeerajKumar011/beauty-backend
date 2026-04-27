@@ -109,112 +109,64 @@ email = email?.trim().toLowerCase();
 }));
 
 
+app.post('/login', asyncHandler(async (req, res) => {
+  let { email, password } = req.body;
 
-app.post(
-  "/login",
-  asyncHandler(
-    async (req, res) => {
-      let {
-        email,
-        password,
-      } = req.body;
+  email = email?.trim().toLowerCase();
 
-      email =
-        email
-          ?.trim()
-          .toLowerCase();
+  if (!email || !password) {
+    return res.status(400).json({
+      message: "Email and password required"
+    });
+  }
 
-      /* Check input */
-      if (
-        !email ||
-        !password
-      ) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "Email and password required",
-          });
-      }
+  const user = await User.findOne({ email }).select("+password");
 
-      /* Find user */
-      const user =
-        await User.findOne({
-          email,
-        });
+  if (!user) {
+    return res.status(401).json({
+      message: "Invalid email"
+    });
+  }
 
-      if (!user) {
-        return res
-          .status(401)
-          .json({
-            message:
-              "Invalid email",
-          });
-      }
+  if (!user.password) {
+    return res.status(500).json({
+      message: "Password missing in account"
+    });
+  }
 
-      /* Broken account check */
-      if (
-        !user.password
-      ) {
-        return res
-          .status(500)
-          .json({
-            message:
-              "Account password missing. Please signup again.",
-          });
-      }
+  const match = await bcrypt.compare(
+    password,
+    user.password
+  );
 
-      /* Compare password */
-      const match =
-        await bcrypt.compare(
-          password,
-          user.password
-        );
+  if (!match) {
+    return res.status(401).json({
+      message: "Invalid password"
+    });
+  }
 
-      if (!match) {
-        return res
-          .status(401)
-          .json({
-            message:
-              "Invalid password",
-          });
-      }
+  if (user.isBlocked) {
+    return res.status(403).json({
+      message: "Account blocked"
+    });
+  }
 
-      /* Blocked check */
-      if (
-        user.isBlocked
-      ) {
-        return res
-          .status(403)
-          .json({
-            message:
-              "Your account has been blocked. Contact admin.",
-          });
-      }
+  const token = jwt.sign(
+    {
+      id: user._id,
+      role: user.role
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
 
-      /* Token */
-      const token =
-        jwt.sign(
-          {
-            id: user._id,
-            role:
-              user.role,
-          },
-          process.env.JWT_SECRET,
-          {
-            expiresIn:
-              "7d",
-          }
-        );
+  user.password = undefined;
 
-      res.json({
-        token,
-        user,
-      });
-    }
-  )
-);
-
+  res.json({
+    token,
+    user
+  });
+}));
 /* PASSWORD RESET */
 app.post('/forgot-password', asyncHandler(async (req, res) => {
   const { email } = req.body;
