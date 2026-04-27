@@ -218,7 +218,7 @@ app.post(
 /* PASSWORD RESET */
 app.post('/forgot-password', asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select("+password");
   if (!user) return res.status(404).json({ message: 'Account not found' });
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
