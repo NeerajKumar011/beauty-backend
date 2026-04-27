@@ -110,29 +110,110 @@ email = email?.trim().toLowerCase();
 
 
 
-app.post('/login', asyncHandler(async (req, res) => {
-  let { email, password } =
-  req.body;
+app.post(
+  "/login",
+  asyncHandler(
+    async (req, res) => {
+      let {
+        email,
+        password,
+      } = req.body;
 
-email = email?.trim().toLowerCase();
-  const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Invalid email' });
+      email =
+        email
+          ?.trim()
+          .toLowerCase();
 
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ message: 'Invalid password' });
+      /* Check input */
+      if (
+        !email ||
+        !password
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "Email and password required",
+          });
+      }
 
-if (user.isBlocked) {
-  return res
-    .status(403)
-    .json({
-      message:
-        "Your account has been blocked. Contact admin.",
-    });
-}
+      /* Find user */
+      const user =
+        await User.findOne({
+          email,
+        });
 
-  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user });
-}));
+      if (!user) {
+        return res
+          .status(401)
+          .json({
+            message:
+              "Invalid email",
+          });
+      }
+
+      /* Broken account check */
+      if (
+        !user.password
+      ) {
+        return res
+          .status(500)
+          .json({
+            message:
+              "Account password missing. Please signup again.",
+          });
+      }
+
+      /* Compare password */
+      const match =
+        await bcrypt.compare(
+          password,
+          user.password
+        );
+
+      if (!match) {
+        return res
+          .status(401)
+          .json({
+            message:
+              "Invalid password",
+          });
+      }
+
+      /* Blocked check */
+      if (
+        user.isBlocked
+      ) {
+        return res
+          .status(403)
+          .json({
+            message:
+              "Your account has been blocked. Contact admin.",
+          });
+      }
+
+      /* Token */
+      const token =
+        jwt.sign(
+          {
+            id: user._id,
+            role:
+              user.role,
+          },
+          process.env.JWT_SECRET,
+          {
+            expiresIn:
+              "7d",
+          }
+        );
+
+      res.json({
+        token,
+        user,
+      });
+    }
+  )
+);
 
 /* PASSWORD RESET */
 app.post('/forgot-password', asyncHandler(async (req, res) => {
