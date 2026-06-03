@@ -11,7 +11,7 @@ const serviceSchema =
       },
 
       price: {
-        type: String,
+        type: Number,
         required: true,
         trim: true,
       },
@@ -21,7 +21,10 @@ const serviceSchema =
         required: true,
         trim: true,
       },
-
+      category: {
+        type: String,
+        default: "",
+      },
       description: {
         type: String,
         default: "",

@@ -1,44 +1,77 @@
 require('dotenv').config({ path: './.env' });
-const Availability =
-  require("./models/Availability");
-const express = require('express');
+
+const express = require('express');   // ✅ was missing
 const cors = require('cors');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 
-const auth = require('./middleware/auth');
-const admin = require('./middleware/admin');
-
+const Availability = require("./models/Availability");
 const User = require('./models/User');
 const Service = require('./models/Service');
 const Booking = require('./models/Booking');
 const Review = require('./models/Review');
-const multer =
-  require("multer");
+const Gallery = require("./models/Gallery");
+const PaymentProfile =require("./models/PaymentProfile");
 
-const {
-  CloudinaryStorage,
-} = require(
-  "multer-storage-cloudinary"
-);
+const auth = require('./middleware/auth');
+const admin = require('./middleware/admin');
 
-const cloudinary =
-  require("./config/cloudinary");
+const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("./config/cloudinary");
 
-const Gallery =
-  require("./models/Gallery");
-
+// =====================
+// CREATE APP (ONLY ONCE)
+// =====================
 const app = express();
+
+// =====================
+// CORS CONFIG
+// =====================
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://nehaparlour.vercel.app"
+];
+
 app.use(
   cors({
-    origin:
-      process.env.CLIENT_URL,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// =====================
+// MIDDLEWARE
+// =====================
+app.use(express.json());
+
+// =====================
+// ROUTES
+// =====================
+
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
 app.use(express.json());
+
 
 mongoose.connect(
   process.env.MONGO_URI,
@@ -209,8 +242,13 @@ app.get('/services', asyncHandler(async (req, res) => {
 }));
 
 app.post('/services', auth, admin, asyncHandler(async (req, res) => {
-  res.json(await Service.create(req.body));
+  const serviceData = {
+    ...req.body,
+    price: Number(req.body.price), // ✅ force convert to number
+  };
+  res.json(await Service.create(serviceData));
 }));
+
 
 app.put('/services/:id', auth, admin, asyncHandler(async (req, res) => {
   const service = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -221,6 +259,83 @@ app.delete('/services/:id', auth, admin, asyncHandler(async (req, res) => {
   await Service.findByIdAndDelete(req.params.id);
   res.json({ message: 'Deleted successfully' });
 }));
+
+/* PAYMENT PROFILES */
+
+app.get(
+  "/payment-profiles",
+  asyncHandler(
+    async (req, res) => {
+      const profiles =
+        await PaymentProfile.find({
+          active: true,
+        });
+
+      res.json(profiles);
+    }
+  )
+);
+
+app.post(
+  "/payment-profiles",
+  auth,
+  admin,
+  asyncHandler(
+    async (req, res) => {
+      const profile =
+        await PaymentProfile.create({
+          name: req.body.name,
+          role: req.body.role,
+          upiId: req.body.upiId,
+          phone: req.body.phone,
+          qrImage:
+            req.body.qrImage,
+          instructions:
+            req.body.instructions,
+        });
+
+      res.json(profile);
+    }
+  )
+);
+
+app.put(
+  "/payment-profiles/:id",
+  auth,
+  admin,
+  asyncHandler(
+    async (req, res) => {
+      const profile =
+        await PaymentProfile.findByIdAndUpdate(
+          req.params.id,
+          req.body,
+          {
+            new: true,
+          }
+        );
+
+      res.json(profile);
+    }
+  )
+);
+
+app.delete(
+  "/payment-profiles/:id",
+  auth,
+  admin,
+  asyncHandler(
+    async (req, res) => {
+      await PaymentProfile.findByIdAndDelete(
+        req.params.id
+      );
+
+      res.json({
+        message:
+          "Payment profile deleted",
+      });
+    }
+  )
+);
 
 /* BOOKINGS */
 /* BOOKINGS */
@@ -456,22 +571,46 @@ app.post(
           });
       }
 
+
+      const selectedService = await Service.findOne({name: service,
+      });
+
+      if (!selectedService) {
+        return res.status(404).json({
+          message: "Service not found",
+        });
+      }
       /* =====================
          CREATE BOOKING
       ===================== */
-      const booking =
-        await Booking.create(
-          {
-            name,
-            service,
-            date,
-            time,
-            userId:
-              req.user.id,
-            status:
-              "Pending",
-          }
-        );
+      console.log("Service from form:", service);
+
+console.log(
+  "Selected Service:",
+  selectedService
+);
+
+console.log(
+  "Selected Price:",
+  selectedService?.price
+);
+      
+      
+      const booking = await Booking.create({
+      name,
+      service,
+      date,
+      time,
+      userId: req.user.id,
+
+      status: "Pending",
+
+      price: selectedService.price,
+
+     
+    });
+
+    console.log("Created booking:", booking);
 
       /* =====================
          EMAIL SAFE MODE
